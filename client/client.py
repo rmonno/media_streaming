@@ -56,6 +56,7 @@ def main(argv=None):
         LOG.error("Exception: %s" % (ex,))
         return False
 
+    LOG.info("Bye Bye...")
     return True
 
 
