@@ -3,7 +3,6 @@
 import sys
 import os
 import argparse
-import time
 
 if __name__ == '__main__':
     bp_ = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
@@ -12,6 +11,7 @@ if __name__ == '__main__':
 
 import utilities as utils
 LOG = None
+
 
 def main(argv=None):
     if not argv: argv = sys.argv
