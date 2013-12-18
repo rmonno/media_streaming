@@ -28,3 +28,6 @@ class ColorLog(object):
                 colored(str(s), **self.colormap[name]), *args)
 
         return getattr(self._logger, name)
+
+    def set_debug(self):
+        self._logger.setLevel(logging.DEBUG)
