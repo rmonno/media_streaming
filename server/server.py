@@ -37,7 +37,7 @@ def catalog():
     for c_ in catalog_:
         info_['catalog'].append({'title': c_})
 
-    return json.dumps(info, sort_keys=True, indent=4, separators=(',', ': '))
+    return json.dumps(info_, sort_keys=True, indent=4, separators=(',', ': '))
 
 
 @bottle.post('/play')
