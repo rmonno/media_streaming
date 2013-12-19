@@ -22,6 +22,38 @@ LOG = utils.ColorLog(name='media_server', debug=False)
 CATALOG_APPEND = None
 CATALOG_REMOVE = None
 CATALOG_GET = None
+PLAY = None
+
+
+@bottle.get('/catalog')
+def catalog():
+    LOG.debug("Enter http get catalog")
+    catalog_ = CATALOG_GET()
+
+    if not len(catalog_):
+        bottle.abort(500, "Empty Catalog!")
+
+    info_ = {'catalog':[]}
+    for c_ in catalog_:
+        info_['catalog'].append({'title': c_})
+
+    return json.dumps(info, sort_keys=True, indent=4, separators=(',', ': '))
+
+
+@bottle.post('/play')
+def play():
+    LOG.debug("Enter http post play")
+    if bottle.request.headers['content-type'] != 'application/json':
+        bottle.abort(500, 'Application Type must be json!')
+
+    title_ = bottle.request.json['title']
+    LOG.info("Title=%s" % title_)
+
+    (ret, descr) = PLAY(title_)
+    if ret != True:
+        bottle.abort(500, "Play error: %s" % descr)
+
+    return bottle.HTTPResponse(body=descr, status=201)
 
 
 class MediaPlayer:
@@ -54,27 +86,27 @@ class MediaPlayer:
         return (True, "Operation completed")
 
 
-class ChangeHandler (PatternMatchingEventHandler):
-    def __init__ (self):
+class ChangeHandler(PatternMatchingEventHandler):
+    def __init__(self):
         PatternMatchingEventHandler.__init__(self, patterns=['*.mp3'])
 
-    def on_any_event (self, event):
+    def on_any_event(self, event):
         pass
 
-    def on_created (self, event):
+    def on_created(self, event):
         LOG.debug("on_created event: %s", str(event))
         (dir_, file_) = os.path.split(event.src_path)
         CATALOG_APPEND(file_)
 
-    def on_deleted (self, event):
+    def on_deleted(self, event):
         LOG.debug("on_deleted event: %s", str(event))
         (dir_, file_) = os.path.split(event.src_path)
         CATALOG_REMOVE(file_)
 
-    def on_modified (self, event):
+    def on_modified(self, event):
         pass
 
-    def on_moved (self, event):
+    def on_moved(self, event):
         pass
 
 
@@ -168,8 +200,8 @@ def main(argv=None):
         LOG.set_debug()
 
     LOG.debug("%s" % (args_,))
-
-    repository_ = 'media_repository'
+    
+    repository_ = os.path.dirname(os.path.abspath(sys.argv[0])) + '/media_repository'
     observer_ = MediaObserver(repository_)
     play_ = MediaPlayer(args_.address, args_.port, repository_)
 
