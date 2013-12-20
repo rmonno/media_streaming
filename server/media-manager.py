@@ -33,6 +33,24 @@ class GenericCommand:
     def execute(self, url):
         raise Exception('execute method is NOT implemented!')
 
+class FileCommand(GenericCommand):
+    def __init__(self):
+        GenericCommand.__init__(self)
+        self.fpath = None
+        self.repo = os.path.dirname(os.path.abspath(sys.argv[0])) + '/media_repository'
+
+    def addFile(self, fpath):
+        self.fpath = fpath
+
+    def isCompleted(self):
+        GenericCommand.isCompleted(self)
+
+        if self.fpath is None:
+            raise AttributeError('missing file parameter!')
+
+        if not os.path.isdir(self.repo):
+            raise AttributeError('%s is not a directory!' % self.repo)
+
 class List(GenericCommand):
     def execute(self, url):
         LOG.info('get list of files action')
@@ -57,10 +75,51 @@ class List(GenericCommand):
         print '\n'
 
     def helpMsg(self):
-        return 'list' + '\tGet a list of all stored music files'
+        return 'list' + '\n\tGet a list of all stored music files'
+
+class Upload(FileCommand):
+    def execute(self, url):
+        if not os.path.isfile(self.fpath):
+            raise AttributeError('The path does not exist or isn\'t a regular file!')
+
+        cmd_ = "cp \"%s\" \"%s\"" % (self.fpath, self.repo)
+        LOG.debug(cmd_)
+        os.system(cmd_)
+
+        LOG.info('successfully uploaded file!')
+
+    def helpMsg(self):
+        return 'upload -f <file>' + '\n\tUpload a file into the repository (absolute path)'
+
+class Remove(FileCommand):
+    def execute(self, url):
+        file_ = self.repo + '/' + self.fpath
+        if not os.path.isfile(file_):
+            raise AttributeError('The %s path does not exist!' % file_)
+
+        LOG.info('Remove a file from a repository')
+
+        cmd_ = "rm \"%s\"" % (file_)
+        LOG.debug(cmd_)
+        os.system(cmd_)
+
+        LOG.info('successfully removed file!')
+
+    def helpMsg(self):
+        return 'remove -f <file>' + '\n\tRemove a file from the repository (file name)'
+
+class Append2Play(GenericCommand):
+    def execute(self, url):
+        LOG.critical('Not implemented, yet!')
+
+    def helpMsg(self):
+        return 'append2play -f <file>' + '\n\tSchedule a file to be played (file name)'
 
 
-commands = {'list': List(),}
+commands = {'list': List(),
+            'upload': Upload(),
+            'remove': Remove(),
+            'append2play': Append2Play()}
 
 class CmdManager:
     def __init__(self):
@@ -74,6 +133,9 @@ class CmdManager:
 
     def connect(self, address, port):
         self.url_ = 'http://' + address + ':' + str(port) + '/'
+
+    def updateFile(self, key, fpath):
+        commands[key].addFile(fpath)
 
     @staticmethod
     def find(key):
@@ -89,7 +151,7 @@ class CmdManager:
     def helpMessage():
         print 'Usage:\n'
         for (_, value) in commands.items():
-            print value.helpMsg(), '\n'
+            print value.helpMsg() + '\n'
 
 
 class CmdConsume(argparse.Action):
@@ -132,6 +194,9 @@ def main(argv=None):
                              action=CmdConsume,
                              help='?=describe how to use every single command')
 
+        parser_.add_argument('-f', '--file',
+                             help='absolute path to a MP3 file')
+
         args_ = parser_.parse_args()
 
     except Exception as ex:
@@ -145,6 +210,9 @@ def main(argv=None):
     comMng = CmdManager()
     
     try:
+        if args_.file is not None:
+            comMng.updateFile(args_.command, args_.file)
+
         comMng.analyze(args_.command)
 
     except AttributeError as ex:
