@@ -5,6 +5,8 @@ import os
 import argparse
 import bottle
 import threading
+import Queue
+import time
 import subprocess
 from watchdog.observers import Observer
 from watchdog.events import *
@@ -35,8 +37,26 @@ def catalog():
 
     info_ = {'catalog':[]}
     for c_ in catalog_:
-        info_['catalog'].append({'title': c_})
+        info_['catalog'].append({'title': c_,
+                                 'index': catalog_.index(c_)})
 
+    return json.dumps(info_, sort_keys=True, indent=4, separators=(',', ': '))
+
+
+@bottle.get('/title')
+def title():
+    LOG.debug("Enter http get catalog")
+    if bottle.request.headers['content-type'] != 'application/json':
+        bottle.abort(500, 'Application Type must be json!')
+
+    index_ = int(bottle.request.json['index'])
+    LOG.info("Index=%d" % index_)
+
+    catalog_ = CATALOG_GET()
+    if index_ >= len(catalog_):
+        bottle.abort(500, 'Index out of range!')
+
+    info_ = {'title': catalog_[index_]}
     return json.dumps(info_, sort_keys=True, indent=4, separators=(',', ': '))
 
 
@@ -56,34 +76,47 @@ def play():
     return bottle.HTTPResponse(body=descr, status=201)
 
 
-class MediaPlayer:
+class QueueMediaPlayer(threading.Thread):
+    queue = Queue.Queue(maxsize=5)
+
     def __init__(self, address, port, catalog_dir):
-        global PLAY
+        threading.Thread.__init__(self)
+        self.daemon = True
 
         self.__address = address
         self.__port = port
         self.__dir = catalog_dir
 
         self.__check_cmd_exists('cvlc')
-        PLAY = self.play
-        LOG.debug("Configured MediaPlayer: addr=%s, port=%s, dir=%s",
+        LOG.debug("Configured QueueMediaPlayer: addr=%s, port=%s, dir=%s",
                   address, port, catalog_dir)
 
     def __check_cmd_exists(self, cmd):
         subprocess.check_call([cmd, '--version'])
 
-    def play(self, fname):
+    def __play(self, fname):
         f_ = self.__dir + '/' + fname
         if not os.path.exists(f_):
-            return (False, "The path (%s) doesn't exist!" % f_)
+            LOG.error("The path (%s) doesn't exist!" % f_)
 
-        cmd_ = "cvlc -vvv --play-and-exit \"" + f_ + "\" " +\
-               "--sout '#standard{access=%s,mux=%s,dst=%s:%s}'" %\
-               ('http', 'ogg', self.__address, self.__port)
-        LOG.debug(cmd_)
-        os.system(cmd_)
+        else:
+            cmd_ = "cvlc -vvv --play-and-exit \"" + f_ + "\" " +\
+                   "--sout '#standard{access=%s,mux=%s,dst=%s:%s}'" %\
+                   ('http', 'ogg', self.__address, self.__port)
+            LOG.debug(cmd_)
+            os.system(cmd_)
 
-        return (True, "Operation completed")
+    def run(self):
+        LOG.debug("QueueMediaPlayer started...")
+        while True:
+            if not self.queue.empty():
+                item_ = self.queue.get(timeout=1)
+                self.__play(item_)
+
+            else:
+                time.sleep(1)
+
+        LOG.error("QueueMediaPlayer ended (?)...")
 
 
 class ChangeHandler(PatternMatchingEventHandler):
@@ -203,7 +236,9 @@ def main(argv=None):
     
     repository_ = os.path.dirname(os.path.abspath(sys.argv[0])) + '/media_repository'
     observer_ = MediaObserver(repository_)
-    play_ = MediaPlayer(args_.address, args_.port, repository_)
+
+    qplay_ = QueueMediaPlayer(args_.address, args_.port, repository_)
+    qplay_.start()
 
     try:
         LOG.info("Starting media server main cycle")

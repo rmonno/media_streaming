@@ -51,6 +51,24 @@ class FileCommand(GenericCommand):
         if not os.path.isdir(self.repo):
             raise AttributeError('%s is not a directory!' % self.repo)
 
+class IndexCommand(GenericCommand):
+    def __init__(self):
+        GenericCommand.__init__(self)
+        self.index = None
+        self.repo = os.path.dirname(os.path.abspath(sys.argv[0])) + '/media_repository'
+
+    def addIndex(self, idx):
+        self.index = idx
+
+    def isCompleted(self):
+        GenericCommand.isCompleted(self)
+
+        if self.index is None:
+            raise AttributeError('missing index parameter!')
+
+        if not os.path.isdir(self.repo):
+            raise AttributeError('%s is not a directory!' % self.repo)
+
 class List(GenericCommand):
     def execute(self, url):
         LOG.info('get list of files action')
@@ -68,10 +86,8 @@ class List(GenericCommand):
 
     def show(self, catalog):
         print '\n'
-        idx_ = 0
         for i in catalog:
-            print '[' + str(idx_) + ']\t' + i['title']
-            idx_ += 1
+            print '[' + str(i['index']) + ']\t' + i['title']
         print '\n'
 
     def helpMsg(self):
@@ -80,7 +96,7 @@ class List(GenericCommand):
 class Upload(FileCommand):
     def execute(self, url):
         if not os.path.isfile(self.fpath):
-            raise AttributeError('The path does not exist or isn\'t a regular file!')
+            raise Exception('The path does not exist or isn\'t a regular file!')
 
         cmd_ = "cp \"%s\" \"%s\"" % (self.fpath, self.repo)
         LOG.debug(cmd_)
@@ -91,29 +107,60 @@ class Upload(FileCommand):
     def helpMsg(self):
         return 'upload -f <file>' + '\n\tUpload a file into the repository (absolute path)'
 
-class Remove(FileCommand):
+class Remove(IndexCommand):
     def execute(self, url):
-        file_ = self.repo + '/' + self.fpath
-        if not os.path.isfile(file_):
-            raise AttributeError('The %s path does not exist!' % file_)
-
         LOG.info('Remove a file from a repository')
+        file_ = None
+        try:
+            params_ = {'index': str(self.index)}
+            r_ = requests.get(url=url + 'title', data=json.dumps(params_),
+                              headers={'content-type': 'application/json'})
 
-        cmd_ = "rm \"%s\"" % (file_)
-        LOG.debug(cmd_)
-        os.system(cmd_)
+            LOG.debug("Response=%s" % r_.text)
+            if r_.status_code != requests.codes.ok:
+                raise Exception('Request error number %d' % (r_.status_code))
+            else:
+                file_ = self.repo + '/' + r_.json()['title']
+
+        except requests.exceptions.RequestException as exc:
+            LOG.critical(str(exc))
+
+        if not os.path.isfile(file_):
+            raise Exception('The %s path does not exist!' % file_)
+
+        cmd_ = "rm \"%s\"" % file_
+        LOG.debug("%s" % cmd_.encode('utf_8'))
+        os.system(cmd_.encode('utf_8'))
 
         LOG.info('successfully removed file!')
 
     def helpMsg(self):
-        return 'remove -f <file>' + '\n\tRemove a file from the repository (file name)'
+        return 'remove -n <index>' + '\n\tRemove a file from the repository'
 
-class Append2Play(GenericCommand):
+class Append2Play(FileCommand):
     def execute(self, url):
-        LOG.critical('Not implemented, yet!')
+        file_ = self.repo + '/' + self.fpath
+        if not os.path.isfile(file_):
+            raise Exception('The %s path does not exist!' % file_)
+
+        LOG.info('Try to insert a file into a music list')
+        try:
+            params_ = {'title': str(self.fpath)}
+            r_ = requests.post(url=url + 'play', data=json.dumps(params_),
+                               headers={'content-type': 'application/json'})
+
+            if r_.status_code != 201:
+                LOG.error(r_.text)
+
+            else:
+                LOG.debug("Response=%s" % str(r_))
+                LOG.info('')
+
+        except requests.exceptions.RequestException as exc:
+            LOG.critical(str(exc))
 
     def helpMsg(self):
-        return 'append2play -f <file>' + '\n\tSchedule a file to be played (file name)'
+        return 'append2play -n <index>' + '\n\tSchedule a file to be played'
 
 
 commands = {'list': List(),
@@ -136,6 +183,9 @@ class CmdManager:
 
     def updateFile(self, key, fpath):
         commands[key].addFile(fpath)
+
+    def updateIndex(self, key, idx):
+        commands[key].addIndex(idx)
 
     @staticmethod
     def find(key):
@@ -197,6 +247,9 @@ def main(argv=None):
         parser_.add_argument('-f', '--file',
                              help='absolute path to a MP3 file')
 
+        parser_.add_argument('-n', '--index',
+                             help='index of a MP3 file')
+
         args_ = parser_.parse_args()
 
     except Exception as ex:
@@ -213,6 +266,9 @@ def main(argv=None):
         if args_.file is not None:
             comMng.updateFile(args_.command, args_.file)
 
+        elif args_.index is not None:
+            comMng.updateIndex(args_.command, args_.index)
+
         comMng.analyze(args_.command)
 
     except AttributeError as ex:
@@ -220,8 +276,14 @@ def main(argv=None):
         LOG.error('what: ' + str(ex))
         return False
 
-    comMng.connect(args_.address, args_.port)
-    comMng.execute(args_.command)
+    try:
+        comMng.connect(args_.address, args_.port)
+        comMng.execute(args_.command)
+
+    except Exception as ex:
+        LOG.error('RUNTIME exception command %s' % (args_.command,))
+        LOG.error('what: ' + str(ex))
+        return False
 
     LOG.info("Bye Bye...")
     return True
