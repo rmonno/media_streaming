@@ -107,6 +107,18 @@ class Upload(FileCommand):
     def helpMsg(self):
         return 'upload -f <file>' + '\n\tUpload a file into the repository (absolute path)'
 
+class Upload2remote(FileCommand):
+    def execute(self, url):
+        cmd_ = "scp \"%s\" \"%s\"" % (self.fpath, self.repo)
+        LOG.debug(cmd_)
+        os.system(cmd_)
+
+        LOG.info('successfully uploaded file!')
+
+    def helpMsg(self):
+        return 'upload2remote -f <user>@<server-addr>:<file>' +\
+               '\n\tUpload a (remote) file into the repository (user, server address, absolute path)'
+
 class Remove(IndexCommand):
     def execute(self, url):
         LOG.info('Remove a file from a repository')
@@ -162,11 +174,33 @@ class Append2Play(FileCommand):
     def helpMsg(self):
         return 'append2play -n <index>' + '\n\tSchedule a file to be played'
 
+class QueueSize(GenericCommand):
+    def execute(self, url):
+        LOG.info('get the size of the queue action')
+        try:
+            r_ = requests.get(url=url + 'queue-size')
+
+            LOG.debug("Response=%s" % r_.text)
+            if r_.status_code != requests.codes.ok:
+                raise Exception('Request error number %d' % (r_.status_code))
+            else:
+                self.show(r_.json()['queue-size'])
+
+        except requests.exceptions.RequestException as exc:
+            LOG.critical(str(exc))
+
+    def show(self, fnum):
+        print '\nThere are ' + str(fnum) + ' music file to be listen...\n'
+
+    def helpMsg(self):
+        return 'queuesize' + '\n\tGet a size of scheduled music files'
 
 commands = {'list': List(),
             'upload': Upload(),
+            'upload2remote': Upload2remote(),
             'remove': Remove(),
-            'append2play': Append2Play()}
+            'append2play': Append2Play(),
+            'queuesize': QueueSize()}
 
 class CmdManager:
     def __init__(self):

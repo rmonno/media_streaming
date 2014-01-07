@@ -24,7 +24,8 @@ LOG = utils.ColorLog(name='media_server', debug=False)
 CATALOG_APPEND = None
 CATALOG_REMOVE = None
 CATALOG_GET = None
-PLAY = None
+
+QUEUE = Queue.Queue(maxsize=5)
 
 
 @bottle.get('/catalog')
@@ -45,7 +46,7 @@ def catalog():
 
 @bottle.get('/title')
 def title():
-    LOG.debug("Enter http get catalog")
+    LOG.debug("Enter http get title")
     if bottle.request.headers['content-type'] != 'application/json':
         bottle.abort(500, 'Application Type must be json!')
 
@@ -57,6 +58,13 @@ def title():
         bottle.abort(500, 'Index out of range!')
 
     info_ = {'title': catalog_[index_]}
+    return json.dumps(info_, sort_keys=True, indent=4, separators=(',', ': '))
+
+
+@bottle.get('/queue-size')
+def queue_size():
+    LOG.debug("Enter http get queue-size")
+    info_ = {'queue-size': QUEUE.qsize()}
     return json.dumps(info_, sort_keys=True, indent=4, separators=(',', ': '))
 
 
@@ -77,8 +85,6 @@ def play():
 
 
 class QueueMediaPlayer(threading.Thread):
-    queue = Queue.Queue(maxsize=5)
-
     def __init__(self, address, port, catalog_dir):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -109,8 +115,8 @@ class QueueMediaPlayer(threading.Thread):
     def run(self):
         LOG.debug("QueueMediaPlayer started...")
         while True:
-            if not self.queue.empty():
-                item_ = self.queue.get(timeout=1)
+            if not QUEUE.empty():
+                item_ = QUEUE.get(timeout=1)
                 self.__play(item_)
 
             else:
