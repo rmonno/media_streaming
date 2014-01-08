@@ -149,27 +149,22 @@ class Remove(IndexCommand):
     def helpMsg(self):
         return 'remove -n <index>' + '\n\tRemove a file from the repository'
 
-class Append2Play(FileCommand):
+class Append2Play(IndexCommand):
     def execute(self, url):
-        file_ = self.repo + '/' + self.fpath
-        if not os.path.isfile(file_):
-            raise Exception('The %s path does not exist!' % file_)
-
-        LOG.info('Try to insert a file into a music list')
+        LOG.info('Try to insert a file into a music queue')
         try:
-            params_ = {'title': str(self.fpath)}
-            r_ = requests.post(url=url + 'play', data=json.dumps(params_),
+            params_ = {'index': str(self.index)}
+            r_ = requests.post(url=url + 'append2play', data=json.dumps(params_),
                                headers={'content-type': 'application/json'})
 
+            LOG.debug("Response=%s" % r_.text)
             if r_.status_code != 201:
-                LOG.error(r_.text)
-
-            else:
-                LOG.debug("Response=%s" % str(r_))
-                LOG.info('')
+                raise Exception('Request error number %d' % (r_.status_code))
 
         except requests.exceptions.RequestException as exc:
             LOG.critical(str(exc))
+
+        LOG.info('successfully scheduled file!')
 
     def helpMsg(self):
         return 'append2play -n <index>' + '\n\tSchedule a file to be played'

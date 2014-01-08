@@ -68,20 +68,29 @@ def queue_size():
     return json.dumps(info_, sort_keys=True, indent=4, separators=(',', ': '))
 
 
-@bottle.post('/play')
-def play():
-    LOG.debug("Enter http post play")
+@bottle.post('/append2play')
+def append2play():
+    LOG.debug("Enter http post append2play")
     if bottle.request.headers['content-type'] != 'application/json':
         bottle.abort(500, 'Application Type must be json!')
 
-    title_ = bottle.request.json['title']
+    index_ = int(bottle.request.json['index'])
+    LOG.info("Index=%d" % index_)
+
+    catalog_ = CATALOG_GET()
+    if index_ >= len(catalog_):
+        bottle.abort(500, 'Index out of range!')
+
+    title_ = catalog_[index_]
     LOG.info("Title=%s" % title_)
 
-    (ret, descr) = PLAY(title_)
-    if ret != True:
-        bottle.abort(500, "Play error: %s" % descr)
+    try:
+        QUEUE.put(item=title_, timeout=1)
 
-    return bottle.HTTPResponse(body=descr, status=201)
+    except Queue.Full:
+        bottle.abort(500, 'Sorry, the queue is full...')
+
+    return bottle.HTTPResponse(body='success', status=201)
 
 
 class QueueMediaPlayer(threading.Thread):
