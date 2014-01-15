@@ -91,7 +91,7 @@ class List(GenericCommand):
         print '\n'
 
     def helpMsg(self):
-        return 'list' + '\n\tGet a list of all stored music files'
+        return 'list' + '\n\tGet a list of all stored audio/video files'
 
 class Upload(FileCommand):
     def execute(self, url):
@@ -151,7 +151,7 @@ class Remove(IndexCommand):
 
 class Append2Play(IndexCommand):
     def execute(self, url):
-        LOG.info('Try to insert a file into a music queue')
+        LOG.info('Try to insert a file into a audio/video queue')
         try:
             params_ = {'index': str(self.index)}
             r_ = requests.post(url=url + 'append2play', data=json.dumps(params_),
@@ -185,10 +185,10 @@ class QueueSize(GenericCommand):
             LOG.critical(str(exc))
 
     def show(self, fnum):
-        print '\nThere are ' + str(fnum) + ' music file to be listen...\n'
+        print '\nThere are ' + str(fnum) + ' file(s) to be played...\n'
 
     def helpMsg(self):
-        return 'queuesize' + '\n\tGet a size of scheduled music files'
+        return 'queuesize' + '\n\tGet a size of scheduled audio/video files'
 
 commands = {'list': List(),
             'upload': Upload(),
@@ -274,10 +274,10 @@ def main(argv=None):
                              help='?=describe how to use every single command')
 
         parser_.add_argument('-f', '--file',
-                             help='absolute path to a MP3 file')
+                             help='absolute path to a MP3/MP4 file')
 
         parser_.add_argument('-n', '--index',
-                             help='index of a MP3 file')
+                             help='index of a MP3/MP4 file')
 
         args_ = parser_.parse_args()
 

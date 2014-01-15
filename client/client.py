@@ -45,7 +45,7 @@ def main(argv=None):
     LOG.debug("%s" % (args_,))
 
     try:
-        cmd_ = "vlc http://%s:%s" % (args_.address, args_.port)
+        cmd_ = "vlc -vvv http://%s:%s" % (args_.address, args_.port)
         LOG.info(cmd_)
         os.system(cmd_)
 

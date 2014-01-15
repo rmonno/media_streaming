@@ -109,7 +109,7 @@ class QueueMediaPlayer(threading.Thread):
     def __check_cmd_exists(self, cmd):
         subprocess.check_call([cmd, '--version'])
 
-    def __play(self, fname):
+    def __play_mp3(self, fname):
         f_ = self.__dir + '/' + fname
         if not os.path.exists(f_):
             LOG.error("The path (%s) doesn't exist!" % f_)
@@ -121,12 +121,31 @@ class QueueMediaPlayer(threading.Thread):
             LOG.debug(cmd_)
             os.system(cmd_)
 
+    def __play_mp4(self, fname):
+        f_ = self.__dir + '/' + fname
+        if not os.path.exists(f_):
+            LOG.error("The path (%s) doesn't exist!" % f_)
+
+        else:
+            cmd_ = "cvlc -vvv --play-and-exit \"" + f_ + "\" " +\
+                   "--sout '#transcode{vcodec=%s,acodec=%s,vb=%s,ab=%s}:standard{access=%s,mux=%s,dst=%s:%s}'" %\
+                   ('mp4v', 'mpga', '800', '128', 'http', 'ogg', self.__address, self.__port)
+            LOG.debug(cmd_)
+            os.system(cmd_)
+
     def run(self):
         LOG.debug("QueueMediaPlayer started...")
         while True:
             if not QUEUE.empty():
                 item_ = QUEUE.get(timeout=1)
-                self.__play(item_)
+                if item_.endswith('.mp3'):
+                    self.__play_mp3(item_)
+
+                elif item_.endswith('.mp4'):
+                    self.__play_mp4(item_)
+
+                else:
+                    LOG.error("Un-managed file type (%s)" % item_)
 
             else:
                 time.sleep(1)
@@ -136,7 +155,7 @@ class QueueMediaPlayer(threading.Thread):
 
 class ChangeHandler(PatternMatchingEventHandler):
     def __init__(self):
-        PatternMatchingEventHandler.__init__(self, patterns=['*.mp3'])
+        PatternMatchingEventHandler.__init__(self, patterns=['*.mp3', '*.mp4'])
 
     def on_any_event(self, event):
         pass
@@ -168,7 +187,7 @@ class MediaObserver:
         self.__obs = Observer(timeout=10)
         self.__obs.schedule(ChangeHandler(), path=directory, recursive=False)
         self.__dir = directory
-        self.__catalog = [f for f in os.listdir(directory) if f.endswith('.mp3')]
+        self.__catalog = [f for f in os.listdir(directory) if f.endswith(('.mp3', '.mp4'))]
 
         CATALOG_APPEND = self.append
         CATALOG_REMOVE = self.remove
